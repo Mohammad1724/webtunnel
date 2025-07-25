@@ -10,18 +10,45 @@ INSTALL_PATH="/usr/local/bin"
 SERVICE_NAME="phantom.service"
 WORKING_DIR="/etc/phantom"
 VERSION_FILE="${WORKING_DIR}/VERSION"
+SYMLINK="/usr/local/bin/phantom-panel"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}"
 # ----------------------
 
 print_info() { echo -e "\e[34m[INFO]\e[0m $1"; }
 print_success() { echo -e "\e[32m[SUCCESS]\e[0m $1"; }
 print_error() { echo -e "\e[31m[ERROR]\e[0m $1" >&2; exit 1; }
 
-print_info "Starting Phantom Tunnel Installation..."
+# --- Handle Arguments ---
+case "$1" in
+  uninstall)
+    echo -e "\n\e[33m[UNINSTALL MODE]\e[0m Removing Phantom Tunnel from the system..."
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    rm -f "$INSTALL_PATH/$EXECUTABLE_NAME"
+    rm -f "$SYMLINK"
+    rm -f "$SERVICE_FILE"
+    rm -rf "$WORKING_DIR"
+    systemctl daemon-reload
+    print_success "Phantom Tunnel completely removed."
+    exit 0
+    ;;
+  restart)
+    echo -e "\n\e[33m[RESTART MODE]\e[0m Restarting Phantom Tunnel service..."
+    if systemctl restart "$SERVICE_NAME"; then
+      print_success "Phantom service restarted successfully."
+    else
+      print_error "Failed to restart the service. Check logs with: journalctl -u ${SERVICE_NAME}"
+    fi
+    exit 0
+    ;;
+esac
 
 # --- Root Check ---
 if [ "$(id -u)" -ne 0 ]; then
   print_error "This script must be run as root. Please use 'sudo'."
 fi
+
+print_info "Starting Phantom Tunnel Installation..."
 
 # --- Dependency Check ---
 print_info "Checking for curl..."
@@ -69,13 +96,12 @@ print_info "Installing binary to ${INSTALL_PATH}..."
 mkdir -p "$WORKING_DIR"
 mv "$EXECUTABLE_NAME" "$INSTALL_PATH/"
 chmod +x "$INSTALL_PATH/$EXECUTABLE_NAME"
-ln -sf "${INSTALL_PATH}/${EXECUTABLE_NAME}" /usr/local/bin/phantom-panel
+ln -sf "${INSTALL_PATH}/${EXECUTABLE_NAME}" "$SYMLINK"
 echo "$LATEST_VERSION" > "$VERSION_FILE"
 print_success "Binary installed and version saved."
 
 # --- Systemd Service ---
 print_info "Creating systemd service..."
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}"
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
 Description=Phantom Tunnel Panel Service
@@ -110,8 +136,8 @@ read -p "Enter the panel port you plan to use (e.g. 8080): " PANEL_PORT
 # --- Open Firewall Port ---
 if command -v firewall-cmd &> /dev/null; then
     print_info "firewalld detected. Adding port ${PANEL_PORT}/tcp..."
-    firewall-cmd --permanent --add-port=${PANEL_PORT}/tcp
-    firewall-cmd --reload
+    firewall-cmd --permanent --add-port=${PANEL_PORT}/tcp || true
+    firewall-cmd --reload || true
     print_success "Firewall port ${PANEL_PORT} opened."
 fi
 
@@ -127,14 +153,14 @@ echo ""
 print_info "2. Run the interactive setup to create credentials and set the panel port:"
 echo "   sudo ${INSTALL_PATH}/${EXECUTABLE_NAME}"
 echo ""
-print_info "3. After setting the port, you can enable and start the service to run in the background:"
+print_info "3. After setting the port, enable and start the service:"
 echo "   sudo systemctl enable --now ${SERVICE_NAME}"
 echo ""
-print_info "After that, you can manage the service with:"
-echo "   sudo systemctl status ${SERVICE_NAME}"
-echo "   sudo systemctl stop ${SERVICE_NAME}"
+print_info "Useful commands:"
+echo "   sudo systemctl restart ${SERVICE_NAME}      # Restart service"
+echo "   sudo systemctl status ${SERVICE_NAME}       # View status"
 echo ""
-echo -e "\e[32mYour panel should be accessible at: \e[4mhttp://<your-server-ip>:${PANEL_PORT}\e[0m"
+echo -e "\e[32mPanel will be available at:\e[0m http://<your-server-ip>:${PANEL_PORT}"
 echo "--------------------------------------------------"
 
 exit 0
