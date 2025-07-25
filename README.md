@@ -17,4 +17,4 @@
 برای نصب کافیست دستور زیر را اجرا کنید:
 
 
-[bash <(curl -Ls https://raw.githubusercontent.com/Mohammad1724/webtunnel/main/install.sh)]
+'bash <(curl -Ls https://raw.githubusercontent.com/Mohammad1724/webtunnel/main/install.sh)'
